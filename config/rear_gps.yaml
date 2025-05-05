@@ -2,6 +2,6 @@ nmea_navsat_driver:
   ros__parameters:
     port: "/dev/emlid_rover"
     baud: 57600
-    frame_id: "gps"
+    frame_id: "gps_rear"
     time_ref_source: "gps"
     useRMC: False
