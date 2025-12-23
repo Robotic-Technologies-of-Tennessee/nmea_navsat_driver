@@ -72,6 +72,8 @@ class Ros2NMEADriver(Node):
         self.lat_std_dev = float("nan")
         self.alt_std_dev = float("nan")
 
+        self.fix_type = -1
+
         """Format for this dictionary is the fix type from a GGA message as the key, with
         each entry containing a tuple consisting of a default estimated
         position error, a NavSatStatus value, and a NavSatFix covariance value."""
@@ -157,10 +159,10 @@ class Ros2NMEADriver(Node):
             if self.use_GNSS_time:
                 current_fix.header.stamp = rclpy.time.Time(seconds=data['utc_time'][0], nanoseconds=data['utc_time'][1]).to_msg()
 
-            fix_type = data['fix_type']
-            if not (fix_type in self.gps_qualities):
-                fix_type = -1
-            gps_qual = self.gps_qualities[fix_type]
+            self.fix_type = data['fix_type']
+            if not (self.fix_type in self.gps_qualities):
+                self.fix_type = -1
+            gps_qual = self.gps_qualities[self.fix_type]
             default_epe = gps_qual[0]
             current_fix.status.status = gps_qual[1]
             current_fix.position_covariance_type = gps_qual[2]
@@ -193,9 +195,19 @@ class Ros2NMEADriver(Node):
                 self.alt_std_dev = default_epe * 2
 
             hdop = data['hdop']
-            current_fix.position_covariance[0] = (hdop * self.lon_std_dev) ** 2
-            current_fix.position_covariance[4] = (hdop * self.lat_std_dev) ** 2
-            current_fix.position_covariance[8] = (2 * hdop * self.alt_std_dev) ** 2  # FIXME
+
+            if self.fix_type > 2: # RTK Fix Status
+                current_fix.position_covariance[0] = (hdop * self.lon_std_dev) ** 2
+                current_fix.position_covariance[4] = (hdop * self.lat_std_dev) ** 2
+                current_fix.position_covariance[8] = (2 * hdop * self.alt_std_dev) ** 2  # FIXME
+            elif self.fix_type == 2: #DGPS
+                current_fix.position_covariance[0] = 10 * (hdop * self.lon_std_dev) ** 2
+                current_fix.position_covariance[4] = 10 * (hdop * self.lat_std_dev) ** 2
+                current_fix.position_covariance[8] = 10 * (2 * hdop * self.alt_std_dev) ** 2  # FIXME
+            elif self.fix_type == 1: #SPS
+                current_fix.position_covariance[0] = 100 * (hdop * self.lon_std_dev) ** 2
+                current_fix.position_covariance[4] = 100 * (hdop * self.lat_std_dev) ** 2
+                current_fix.position_covariance[8] = 100 * (2 * hdop * self.alt_std_dev) ** 2  # FIXME
 
             self.fix_pub.publish(current_fix)
 
